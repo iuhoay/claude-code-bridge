@@ -14,7 +14,8 @@ A tool for switching between different Claude Code service providers.
 ### Homebrew (recommended)
 
 ```bash
-brew install iuhoay/tap/claude-code-bridge
+brew tap iuhoay/claude-code-bridge
+brew install claude-code-bridge
 ```
 
 ### Manual
