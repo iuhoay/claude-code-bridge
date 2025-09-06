@@ -1,0 +1,15 @@
+{
+  "providers": {
+    "anthropic": {
+      "name": "Anthropic Official",
+      "description": "Uses Claude Code's default configuration, no environment variables needed"
+    },
+    "z_ai": {
+      "name": "Z.AI",
+      "base_url": "https://api.z.ai/api/anthropic",
+      "auth_token": "your_z_ai_token_here",
+      "model": "GLM-4.5",
+      "small_model": "GLM-4.5-X"
+    }
+  }
+}

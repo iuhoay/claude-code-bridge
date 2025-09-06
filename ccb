@@ -1,0 +1,179 @@
+#!/bin/bash
+set -euo pipefail
+
+# Claude Code Bridge (ccb)
+# Switch between different Claude Code service providers
+
+CONFIG_DIR="${CCB_CONFIG_DIR:-$HOME/.config/claude_code_bridge}"
+CONFIG_FILE="${CCB_CONFIG_FILE:-$CONFIG_DIR/providers.json}"
+
+# Show help
+show_help() {
+    cat << EOF
+Usage: ccb [provider_name] [claude_args...]
+
+If no provider name is specified, show interactive selection menu
+
+Examples:
+  ccb                    # Show interactive provider selection
+  ccb anthropic          # Use Anthropic provider
+  ccb z_ai --help        # Use Z.AI provider and pass --help to Claude
+
+Config file format ($CONFIG_FILE):
+{
+  "providers": {
+    "anthropic": {
+      "name": "Anthropic Official",
+      "description": "Uses Claude Code's default configuration, no environment variables needed"
+    },
+    "z_ai": {
+      "name": "Z.AI",
+      "base_url": "https://api.z.ai/api/anthropic",
+      "auth_token": "your_z_ai_token_here",
+      "model": "GLM-4.5",
+      "small_model": "GLM-4.5-X"
+    }
+  }
+}
+EOF
+}
+
+# Check if jq is available
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        echo "Error: jq is required but not installed" >&2
+        echo "Please install jq: brew install jq (macOS) or apt-get install jq (Ubuntu)" >&2
+        exit 1
+    fi
+}
+
+# Validate config file exists and is readable
+validate_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo "Error: Config file not found: $CONFIG_FILE" >&2
+        echo "Create config directory and add provider configurations:" >&2
+        echo "  mkdir -p '$CONFIG_DIR'" >&2
+        echo "  Create '$CONFIG_FILE' with provider configurations" >&2
+        exit 1
+    fi
+    
+    if [[ ! -r "$CONFIG_FILE" ]]; then
+        echo "Error: Config file not readable: $CONFIG_FILE" >&2
+        exit 1
+    fi
+}
+
+# Parse and validate provider configuration
+parse_providers() {
+    local config_content
+    config_content=$(jq -r '.providers // {}' "$CONFIG_FILE" 2>/dev/null) || {
+        echo "Error: Invalid JSON in config file: $CONFIG_FILE" >&2
+        exit 1
+    }
+    
+    local provider_count
+    provider_count=$(echo "$config_content" | jq -r 'keys | length')
+    
+    if [[ "$provider_count" -eq 0 ]]; then
+        echo "Error: No provider configurations found in config file" >&2
+        exit 1
+    fi
+    
+    echo "$config_content"
+}
+
+# Show provider selection menu
+select_provider() {
+    echo "Select Claude Code Provider:"
+    echo "----------------------------------------"
+    
+    validate_config
+    check_jq
+    
+    local providers
+    providers=$(parse_providers)
+    
+    local provider_names
+    IFS=$'\n' read -r -d '' -a provider_names < <(echo "$providers" | jq -r 'keys[]' && printf '\0')
+    
+    # Show selection menu with provider names
+    for ((i=0; i<${#provider_names[@]}; i++)); do
+        local provider_name="${provider_names[i]}"
+        local display_name
+        display_name=$(echo "$providers" | jq -r ".\"$provider_name\".name // \"$provider_name\"")
+        echo "$((i+1))) $display_name ($provider_name)"
+    done
+    
+    echo ""
+    local choice
+    read -p "Select provider (1-${#provider_names[@]}): " choice
+    
+    if [[ $choice =~ ^[0-9]+$ ]] && [[ $choice -ge 1 ]] && [[ $choice -le ${#provider_names[@]} ]]; then
+        local provider_index=$((choice-1))
+        launch_claude "${provider_names[provider_index]}" "$@"
+    else
+        echo "Error: Invalid selection" >&2
+        exit 1
+    fi
+}
+
+# Set environment variables and launch Claude
+launch_claude() {
+    local provider_name="$1"
+    shift
+    
+    validate_config
+    check_jq
+    
+    local providers
+    providers=$(parse_providers)
+    
+    # Check if provider exists
+    if ! echo "$providers" | jq -e ".\"$provider_name\"" > /dev/null 2>&1; then
+        echo "Error: Provider not found: $provider_name" >&2
+        exit 1
+    fi
+    
+    # Get provider display name
+    local display_name
+    display_name=$(echo "$providers" | jq -r ".\"$provider_name\".name // \"$provider_name\"")
+    
+    # Set environment variables directly - NO TEMP FILES
+    local provider_config
+    provider_config=$(echo "$providers" | jq -r ".\"$provider_name\"")
+    
+    # Skip if this is the native anthropic provider (no env vars needed)
+    if [[ "$provider_name" != "anthropic" ]]; then
+        # Set environment variables directly
+        while IFS='=' read -r key value; do
+            if [[ -n "$key" && "$key" != "name" ]]; then
+                local upper_key
+                upper_key=$(echo "$key" | tr '[:lower:]' '[:upper:]')
+                export "ANTHROPIC_${upper_key}=$value"
+            fi
+        done < <(echo "$provider_config" | jq -r 'to_entries | .[] | select(.key != "name") | "\(.key)=\(.value)"')
+    fi
+    
+    echo "Launching Claude Code - Provider: $display_name"
+    echo "----------------------------------------"
+    
+    # Execute Claude directly
+    exec claude "$@"
+}
+
+# Main function
+main() {
+    case "${1:-}" in
+        -h|--help|help)
+            show_help
+            ;;
+        "")
+            select_provider "${@:2}"
+            ;;
+        *)
+            launch_claude "$@"
+            ;;
+    esac
+}
+
+main "$@"
