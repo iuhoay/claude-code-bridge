@@ -1,4 +1,5 @@
 {
+  "default_provider": "anthropic",
   "providers": {
     "anthropic": {
       "name": "Anthropic Official",
@@ -6,10 +7,25 @@
     },
     "z_ai": {
       "name": "Z.AI",
-      "base_url": "https://api.z.ai/api/anthropic",
-      "auth_token": "your_z_ai_token_here",
-      "model": "GLM-4.5",
-      "small_model": "GLM-4.5-X"
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "your_api_key_here",
+        "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+        "API_TIMEOUT_MS": "3000000",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.7",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-4.7"
+      }
+    },
+    "kimi": {
+      "name": "Kimi",
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "your_api_key_here",
+        "ANTHROPIC_BASE_URL": "https://api.moonshot.cn/anthropic",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-k2.5",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-k2.5",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "kimi-k2.5"
+      }
     }
   }
 }
